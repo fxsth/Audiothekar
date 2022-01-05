@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "audiothek-client", "audiothek-client\audiothek-client.csproj", "{4DA78C6D-3023-448F-B587-2B7B8A286F8D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "audiothekar-cli", "audiothekar-cli\audiothekar-cli.csproj", "{85D6DD2F-0BC3-44B4-A8D2-68EFD0C1B216}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "audiotagger", "audiotagger\audiotagger.csproj", "{CBFB9210-A250-4D98-8E11-0F4614084EF8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4DA78C6D-3023-448F-B587-2B7B8A286F8D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4DA78C6D-3023-448F-B587-2B7B8A286F8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4DA78C6D-3023-448F-B587-2B7B8A286F8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4DA78C6D-3023-448F-B587-2B7B8A286F8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{85D6DD2F-0BC3-44B4-A8D2-68EFD0C1B216}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{85D6DD2F-0BC3-44B4-A8D2-68EFD0C1B216}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{85D6DD2F-0BC3-44B4-A8D2-68EFD0C1B216}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{85D6DD2F-0BC3-44B4-A8D2-68EFD0C1B216}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBFB9210-A250-4D98-8E11-0F4614084EF8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBFB9210-A250-4D98-8E11-0F4614084EF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBFB9210-A250-4D98-8E11-0F4614084EF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBFB9210-A250-4D98-8E11-0F4614084EF8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

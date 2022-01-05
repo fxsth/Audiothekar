@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <RootNamespace>audiothek_client</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="GraphQL.Client" Version="4.0.1" />
+      <PackageReference Include="GraphQL.Client.Serializer.SystemTextJson" Version="4.0.1" />
+      <PackageReference Include="GraphQL.SystemTextJson" Version="4.6.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Api.Catalog" />
+    </ItemGroup>
+
+</Project>
