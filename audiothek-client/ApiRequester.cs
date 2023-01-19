@@ -27,11 +27,18 @@ namespace audiothek_client
             };
         }
 
-        public async Task<IEnumerable<string>> GetAllProgramSets()
+        public async Task<IEnumerable<Node>> GetAllProgramSets()
         {
             var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(AllProgramSetsRequest);
             return graphQlResponse.Data.programSets.nodes
-                .Where(s => s?.editorialCategory?.title?.Contains("Hörspiel")==true).Select(x => x.title);
+                .Where(s => s?.editorialCategory?.title?.Contains("Hörspiel")==true);
+        }
+
+        public async Task<IEnumerable<Node>> GetFilesByNodeId(string nodeId)
+        {
+            GraphQLRequest query = ProgramSetByNodeIdRequest(nodeId);
+            var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(query);
+            return graphQlResponse.Data.programSetByNodeId.items.nodes;
         }
 
         public async Task DownloadAllFilesByTitle(string title, string path)

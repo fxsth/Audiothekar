@@ -17,6 +17,10 @@ public class Node
     public int rowId { get; set; }
     public EditorialCategory editorialCategory { get; set; }
     public List<Audio> audios { get; set; }
+    public override string ToString()
+    {
+        return title;
+    }
 }
 
 public class ProgramSets

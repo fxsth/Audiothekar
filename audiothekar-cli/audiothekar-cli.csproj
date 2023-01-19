@@ -12,4 +12,8 @@
       <ProjectReference Include="..\audiothek-client\audiothek-client.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Spectre.Console" Version="0.46.0" />
+    </ItemGroup>
+
 </Project>
