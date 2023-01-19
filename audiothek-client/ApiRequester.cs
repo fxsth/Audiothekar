@@ -1,5 +1,4 @@
-﻿using audiothek_client.Models;
-using GraphQL;
+﻿using GraphQL;
 using GraphQL.Client.Http;
 using GraphQL.Client.Serializer.SystemTextJson;
 
@@ -15,7 +14,7 @@ namespace audiothek_client
         {
             Query = @"
             {
-              query {programSets {nodes {title, numberOfElements, nodeId, rowId, editorialCategory{title}}}}
+              programSets {nodes {title, numberOfElements, nodeId, rowId, editorialCategory{title}}}
             }"
         };
 
@@ -31,8 +30,8 @@ namespace audiothek_client
         public async Task<IEnumerable<string>> GetAllProgramSets()
         {
             var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(AllProgramSetsRequest);
-            return graphQlResponse.Data.query.programSets.nodes
-                .Where(s => s.editorialCategory.title == "Hörspiel & Lesung ").Select(x => x.title);
+            return graphQlResponse.Data.programSets.nodes
+                .Where(s => s?.editorialCategory?.title?.Contains("Hörspiel")==true).Select(x => x.title);
         }
 
         public async Task DownloadAllFilesByTitle(string title, string path)
@@ -54,7 +53,7 @@ namespace audiothek_client
         private async Task<string> TryGetNodeIdByTitle(string title)
         {
             var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(AllProgramSetsRequest);
-            return graphQlResponse.Data.query.programSets.nodes.Where(x => x.title == title).Select(x => x.nodeId)
+            return graphQlResponse.Data.programSets.nodes.Where(x => x.title == title).Select(x => x.nodeId)
                 .First();
         }
 

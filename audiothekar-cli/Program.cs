@@ -7,7 +7,7 @@ using audiothek_client;
 
 Console.WriteLine("Starting...");
 ApiRequester apiRequester = new ApiRequester();
-IEnumerable<string> titles = apiRequester.GetAllProgramSets().Result;
+IEnumerable<string> titles = await apiRequester.GetAllProgramSets();
 foreach (string title in titles)
 {
     Console.WriteLine(title);
