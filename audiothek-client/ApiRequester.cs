@@ -14,7 +14,7 @@ namespace audiothek_client
         {
             Query = @"
             {
-              programSets {nodes {title, numberOfElements, nodeId, rowId, editorialCategory{title}}}
+              programSets {nodes {title, numberOfElements, nodeId, rowId, editorialCategory{title, id}}}
             }"
         };
 
@@ -30,8 +30,7 @@ namespace audiothek_client
         public async Task<IEnumerable<Node>> GetAllProgramSets()
         {
             var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(AllProgramSetsRequest);
-            return graphQlResponse.Data.programSets.nodes
-                .Where(s => s?.editorialCategory?.title?.Contains("Hörspiel")==true);
+            return graphQlResponse.Data.programSets.nodes.Where(x=>x.numberOfElements != null);
         }
 
         public async Task<IEnumerable<Node>> GetFilesByNodeId(string nodeId)
@@ -41,19 +40,24 @@ namespace audiothek_client
             return graphQlResponse.Data.programSetByNodeId.items.nodes;
         }
 
-        public async Task DownloadAllFilesByTitle(string title, string path)
+        public async Task DownloadAllFilesFromNode(Node parentNode, string path)
         {
-            string outputDir =
-                Path.Combine(path, MakeValidFileName(title));
-            GraphQLRequest query = ProgramSetByNodeIdRequest(await TryGetNodeIdByTitle(title));
+            string outputDir = Path.Combine(path, MakeValidFileName(parentNode.title));
+            GraphQLRequest query = ProgramSetByNodeIdRequest(parentNode.nodeId);
             var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(query);
             foreach (var node in graphQlResponse.Data.programSetByNodeId.items.nodes)
             {
-                string? downloadUrl = node.audios.FirstOrDefault()?.downloadUrl;
-                string filename = node.title;
-                if(string.IsNullOrEmpty(downloadUrl) || string.IsNullOrEmpty(filename))
-                    continue;
-                await Download(downloadUrl, Path.Combine(outputDir, MakeValidFileName(title) + ".mp3"));
+                int i = 0;
+                foreach (var audio in node.audios)
+                {
+                    i++;
+                    string downloadUrl = audio.downloadUrl;
+                    if(string.IsNullOrEmpty(downloadUrl) || string.IsNullOrEmpty(node.title))
+                        continue;
+                    string partNumberInFilename = node.audios.Count > 1 ? $" ({i})" : string.Empty;
+                    string filename = $"{MakeValidFileName(node.title)}{partNumberInFilename}.mp3";
+                    await Download(downloadUrl, Path.Combine(outputDir, filename));
+                }
             }
         }
 
@@ -66,16 +70,23 @@ namespace audiothek_client
 
         private async Task Download(string? downloadUrl, string filePath)
         {
-            string dirPath = Path.GetDirectoryName(filePath);
-            string filename = Path.GetFileName(downloadUrl);
-            string localFilename = Path.Combine(dirPath, filename);
-            Directory.CreateDirectory(dirPath);
-            var url = new Uri(downloadUrl);
-            var httpClient = new HttpClient();
-            await httpClient.GetByteArrayAsync(url).ContinueWith(data =>
+            try
             {
-                File.WriteAllBytes(localFilename, data.Result);
-            });
+                string dirPath = Path.GetDirectoryName(filePath);
+                string filename = Path.GetFileName(downloadUrl);
+                string localFilename = Path.Combine(dirPath, filename);
+                Directory.CreateDirectory(dirPath);
+                var url = new Uri(downloadUrl);
+                var httpClient = new HttpClient();
+                await httpClient.GetByteArrayAsync(url).ContinueWith(data =>
+                {
+                    File.WriteAllBytes(localFilename, data.Result);
+                });
+            }
+            catch (Exception e)
+            {
+                //ignored
+            }
         }
         
         private static string MakeValidFileName( string name )
