@@ -19,11 +19,13 @@ while (!downloadSelected)
     selectedCategory = AnsiConsole.Prompt(
         new SelectionPrompt<string>()
             .Title("Rubrik:")
+            .PageSize(15)
             .AddChoices(categories.Select(x => x.Key)));
 
     selectedNode = AnsiConsole.Prompt(
         new SelectionPrompt<Node>()
             .Title("Reihe:")
+            .PageSize(15)
             .AddChoices(categories.Single(x => x.Key == selectedCategory).OrderBy(x => x.title)));
 
     var nodesByNodeId = await apiRequester.GetFilesByNodeId(selectedNode.nodeId);
