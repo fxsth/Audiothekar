@@ -14,7 +14,7 @@ namespace audiothek_client
         {
             Query = @"
             {
-              programSets {nodes {title, numberOfElements, nodeId, rowId, editorialCategory{title, id}}}
+              programSets {nodes {title, numberOfElements, nodeId, rowId, editorialCategory{title, id}, lastItemAdded}}
             }"
         };
 
@@ -23,14 +23,14 @@ namespace audiothek_client
             return new GraphQLRequest
             {
                 Query =
-                    $"{{ programSetByNodeId(nodeId:\"{nodeId}\") {{ rowId, items{{nodes{{ title, audios{{downloadUrl}}}}}}}}}}"
+                    $"{{ programSetByNodeId(nodeId:\"{nodeId}\") {{ rowId, items{{nodes{{ title, audios{{url, downloadUrl, allowDownload}}, assetId, isPublished, publishDate, episodeNumber, summary, description, duration}}}}}}}}"
             };
         }
 
         public async Task<IEnumerable<Node>> GetAllProgramSets()
         {
             var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(AllProgramSetsRequest);
-            return graphQlResponse.Data.programSets.nodes.Where(x=>x.numberOfElements != null);
+            return graphQlResponse.Data.programSets.nodes.Where(x => x.numberOfElements != null);
         }
 
         public async Task<IEnumerable<Node>> GetFilesByNodeId(string nodeId)
@@ -40,61 +40,54 @@ namespace audiothek_client
             return graphQlResponse.Data.programSetByNodeId.items.nodes;
         }
 
-        public async Task DownloadAllFilesFromNode(Node parentNode, string path)
+        public async Task DownloadAllFilesFromNodes(IEnumerable<Node> nodes, string parentTitle, string path)
         {
-            string outputDir = Path.Combine(path, MakeValidFileName(parentNode.title));
-            GraphQLRequest query = ProgramSetByNodeIdRequest(parentNode.nodeId);
-            var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(query);
-            foreach (var node in graphQlResponse.Data.programSetByNodeId.items.nodes)
+            string outputDir = Path.Combine(path, MakeValidFileName(parentTitle));
+            foreach (var node in nodes)
             {
-                int i = 0;
-                foreach (var audio in node.audios)
-                {
-                    i++;
-                    string downloadUrl = audio.downloadUrl;
-                    if(string.IsNullOrEmpty(downloadUrl) || string.IsNullOrEmpty(node.title))
-                        continue;
-                    string partNumberInFilename = node.audios.Count > 1 ? $" ({i})" : string.Empty;
-                    string filename = $"{MakeValidFileName(node.title)}{partNumberInFilename}.mp3";
-                    await Download(downloadUrl, Path.Combine(outputDir, filename));
-                }
+                await Download(node, outputDir);
             }
         }
 
-        private async Task<string> TryGetNodeIdByTitle(string title)
+        public async Task Download(Node node, string outputDir)
         {
-            var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(AllProgramSetsRequest);
-            return graphQlResponse.Data.programSets.nodes.Where(x => x.title == title).Select(x => x.nodeId)
-                .First();
+            int i = 0;
+            var audios = node.audios.Where(x => x.downloadUrl != null);
+            foreach (var audio in audios)
+            {
+                i++;
+                string downloadUrl = audio.downloadUrl!;
+                if (string.IsNullOrEmpty(downloadUrl) || string.IsNullOrEmpty(node.title))
+                    continue;
+                string partNumberInFilename = audios.Count() > 1 ? $" ({i})" : string.Empty;
+                string filename = $"{MakeValidFileName(node.title)}{partNumberInFilename}.mp3";
+                await Download(downloadUrl, Path.Combine(outputDir, filename));
+            }
         }
 
         private async Task Download(string? downloadUrl, string filePath)
         {
-            try
+            string? dirPath = Path.GetDirectoryName(filePath);
+            Directory.CreateDirectory(dirPath);
+            var uri = new Uri(downloadUrl);
+            var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(200);
+            using (var s = await httpClient.GetStreamAsync(uri))
             {
-                string dirPath = Path.GetDirectoryName(filePath);
-                string filename = Path.GetFileName(downloadUrl);
-                string localFilename = Path.Combine(dirPath, filename);
-                Directory.CreateDirectory(dirPath);
-                var url = new Uri(downloadUrl);
-                var httpClient = new HttpClient();
-                await httpClient.GetByteArrayAsync(url).ContinueWith(data =>
+                using (var fs = new FileStream(filePath, FileMode.OpenOrCreate))
                 {
-                    File.WriteAllBytes(localFilename, data.Result);
-                });
-            }
-            catch (Exception e)
-            {
-                //ignored
+                    await s.CopyToAsync(fs);
+                }
             }
         }
-        
-        private static string MakeValidFileName( string name )
-        {
-            string invalidChars = System.Text.RegularExpressions.Regex.Escape( new string( System.IO.Path.GetInvalidFileNameChars() ) );
-            string invalidRegStr = string.Format( @"([{0}]*\.+$)|([{0}]+)", invalidChars );
 
-            return System.Text.RegularExpressions.Regex.Replace( name, invalidRegStr, "-" );
+        private static string MakeValidFileName(string name)
+        {
+            string invalidChars =
+                System.Text.RegularExpressions.Regex.Escape(new string(System.IO.Path.GetInvalidFileNameChars()));
+            string invalidRegStr = string.Format(@"([{0}]*\.+$)|([{0}]+)", invalidChars);
+
+            return System.Text.RegularExpressions.Regex.Replace(name, invalidRegStr, "-");
         }
     }
 }
