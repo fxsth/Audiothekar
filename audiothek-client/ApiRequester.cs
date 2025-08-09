@@ -1,16 +1,28 @@
-﻿using GraphQL;
+﻿using audiothek_client.Serialize;
+using GraphQL;
 using GraphQL.Client.Http;
 using GraphQL.Client.Serializer.SystemTextJson;
 
 namespace audiothek_client
 {
+
     public class ApiRequester
     {
         private const string ApiUrl = "https://api.ardaudiothek.de/graphql";
+        
+        private static readonly GraphQLHttpClientOptions GraphQlClientOptions = new GraphQLHttpClientOptions
+        {
+            EndPoint = new Uri(ApiUrl)
+        };
+        
+        private static readonly SystemTextJsonSerializer Serializer = new SystemTextJsonSerializer()
+        {
+            Options = { TypeInfoResolver = SourceGenerationContext.Default }
+        };
 
-        readonly GraphQLHttpClient _graphQlClient = new GraphQLHttpClient(ApiUrl, new SystemTextJsonSerializer());
+        readonly GraphQLHttpClient _graphQlClient = new GraphQLHttpClient(GraphQlClientOptions, Serializer);
 
-        GraphQLRequest AllProgramSetsRequest = new GraphQLRequest
+        private readonly GraphQLRequest _allProgramSetsRequest = new GraphQLRequest
         {
             Query = @"
             {
@@ -29,7 +41,7 @@ namespace audiothek_client
 
         public async Task<IEnumerable<Node>> GetAllProgramSets()
         {
-            var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(AllProgramSetsRequest);
+            var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(_allProgramSetsRequest);
             return graphQlResponse.Data.programSets.nodes.Where(x => x.numberOfElements != null);
         }
 
@@ -52,7 +64,7 @@ namespace audiothek_client
         public async Task Download(Node node, string outputDir)
         {
             int i = 0;
-            var audios = node.audios.Where(x => x.downloadUrl != null);
+            var audios = node.audios.Where(x => x.downloadUrl != null).ToList();
             foreach (var audio in audios)
             {
                 i++;
@@ -65,9 +77,11 @@ namespace audiothek_client
             }
         }
 
-        private async Task Download(string? downloadUrl, string filePath)
+        private async Task Download(string downloadUrl, string filePath)
         {
             string? dirPath = Path.GetDirectoryName(filePath);
+            if(dirPath == null)
+                throw new ArgumentException("Could not determine directory name from file path.", nameof(filePath));
             Directory.CreateDirectory(dirPath);
             var uri = new Uri(downloadUrl);
             var httpClient = new HttpClient();
@@ -84,7 +98,7 @@ namespace audiothek_client
         private static string MakeValidFileName(string name)
         {
             string invalidChars =
-                System.Text.RegularExpressions.Regex.Escape(new string(System.IO.Path.GetInvalidFileNameChars()));
+                System.Text.RegularExpressions.Regex.Escape(new string(Path.GetInvalidFileNameChars()));
             string invalidRegStr = string.Format(@"([{0}]*\.+$)|([{0}]+)", invalidChars);
 
             return System.Text.RegularExpressions.Regex.Replace(name, invalidRegStr, "-");

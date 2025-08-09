@@ -119,7 +119,7 @@ public static class Program
                 }
             }
         });
-        AnsiConsole.Markup(":check_mark_button: Completed.");
+        AnsiConsole.MarkupLine(":check_mark_button: Completed.");
     }
 
     private static string MakeValidFileName(string name)
