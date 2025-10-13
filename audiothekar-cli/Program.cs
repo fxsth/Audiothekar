@@ -115,7 +115,7 @@ public static class Program
         Node? selected = null;
         int selectedIndex = 0;
 
-        await AnsiConsole.Live(new Table().AddColumn("Titel").AddColumn("Dauer"))
+        await AnsiConsole.Live(new Table().AddColumn("Titel").AddColumn("Anzahl Folgen"))
             .StartAsync(async ctx =>
             {
                 while (selected == null)
@@ -128,15 +128,15 @@ public static class Program
                     if (selectedIndex >= filtered.Count)
                         selectedIndex = Math.Max(0, filtered.Count - 1);
 
-                    var table = new Table().AddColumn("Titel").AddColumn("Dauer");
+                    var table = new Table().AddColumn("Titel").AddColumn("Anzahl Folgen");
                     for (int i = 0; i < filtered.Count; i++)
                     {
                         var node = filtered[i];
                         if (i == selectedIndex)
                             table.AddRow($"[bold yellow]{node.title}[/]",
-                                $"[bold yellow]{TimeSpan.FromSeconds(node.duration)}[/]");
+                                $"[bold yellow]{node.numberOfElements}[/]");
                         else
-                            table.AddRow(node.title, TimeSpan.FromSeconds(node.duration).ToString());
+                            table.AddRow(node.title, node.numberOfElements?.ToString() ?? "0");
                     }
 
                     ctx.UpdateTarget(table);
@@ -194,6 +194,11 @@ public static class Program
             .Select(y => y.OrderByDescending(a => a.publishDate).First())
             .OrderBy(x => x.episodeNumber).ToList();
     }
+    
+    private static bool HasDownloadableNodes(IEnumerable<Node> nodes)
+    {
+        return nodes.Any(x => x.audios.Any(audio => audio.downloadUrl != null));
+    }
 
     private static Tree CreateTreeFromNodes(Node root, IReadOnlyCollection<Node> children)
     {
@@ -204,11 +209,13 @@ public static class Program
         var table = new Table()
             .RoundedBorder()
             .AddColumn("Name")
-            .AddColumn("Dauer");
+            .AddColumn("Dauer")
+            .AddColumn("Episoden Nr.");
         item.AddNode(table);
         foreach (var child in children)
         {
-            table.AddRow(child.title, TimeSpan.FromSeconds(child.duration).ToString());
+            table.AddRow(child.title, TimeSpan.FromSeconds(child.duration).ToString(),
+                child.episodeNumber?.ToString() ?? "-");
         }
 
         return tree;
@@ -241,6 +248,7 @@ public static class Program
             }
         });
         AnsiConsole.MarkupLine(":check_mark_button: Completed.");
+        Console.ReadKey();
     }
 
     private static string MakeValidFileName(string name)
