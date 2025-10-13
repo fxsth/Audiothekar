@@ -17,8 +17,8 @@ public class Search
 
 public class ItemsSearch
 {
-    public int totalCount { get; set; }
-    public Nodes[] nodes { get; set; }
+    public int? totalCount { get; set; }
+    public List<Nodes> nodes { get; set; } = new();
 }
 
 public class Nodes
@@ -28,9 +28,9 @@ public class Nodes
     public string title { get; set; }
     public string path { get; set; }
     public string publishDate { get; set; }
-    public int duration { get; set; }
+    public int? duration { get; set; }
     public string itemType { get; set; }
-    public Audio[] audios { get; set; }
+    public List<Audio> audios { get; set; } = new();
     public ProgramSet? programSet { get; set; }
     
 }

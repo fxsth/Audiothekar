@@ -159,9 +159,10 @@ public static class Program
                             ? new List<Node>()
                             : (await apiRequester.Search(searchTerm, 0, 5, cts.Token)).ToList();
                     }
-                    catch
+                    catch(Exception e)
                     {
                         // ignore
+                        AnsiConsole.WriteLine("Fehler bei der Suche: {0}", e);
                     }
 
                     // Auswahl-Index anpassen, falls nötig

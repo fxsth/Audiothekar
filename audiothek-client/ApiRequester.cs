@@ -19,7 +19,7 @@ namespace audiothek_client
         {
             Options =
             {
-                TypeInfoResolver = SourceGenerationContext.Default, PropertyNameCaseInsensitive = true
+                TypeInfoResolver = SourceGenerationContext.Default
             }
         };
 
@@ -67,7 +67,7 @@ namespace audiothek_client
                 audios = x.audios.ToList(),
                 assetId = x.id,
                 publishDate = DateTimeOffset.Parse(x.publishDate),
-                duration = x.duration,
+                duration = x.duration ?? 0,
                 itemType = x.itemType,
                 programSet = new Node()
                 {

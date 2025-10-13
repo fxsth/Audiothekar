@@ -13,7 +13,7 @@
         <Authors>Felix Steinfurth</Authors>
         <Product>Audiothekar</Product>
         <ProductName>Audiothekar</ProductName>
-        <Version>1.1.0</Version>
+        <Version>1.2.0</Version>
         <Copyright>Copyright $([System.DateTime]::Now.Year) $(Authors)</Copyright>
         <Description>Download client for ARD Audiothek (public audio portal of the german broadcasting stations)</Description>
         <NeutralLanguage>German</NeutralLanguage>
