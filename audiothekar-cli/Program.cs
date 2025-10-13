@@ -8,6 +8,9 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
+        string preferredDownloadDir =
+            args.Length > 0 ? args[0] : Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+
         AnsiConsole.Clear();
         AnsiConsole.Write(new FigletText("Audiothekar").Color(Color.Blue));
         ApiRequester apiRequester = new ApiRequester();
@@ -26,23 +29,25 @@ public static class Program
                 selectedNode = await LiveSearchAsync(nodesOfAllCategories);
             else
                 selectedNode = SelectSeries(categories.Single(x => x.Key == selectedCategory.DisplayName));
-            
-            await SelectAndDownloadNodesBySeries(apiRequester, selectedNode);
-            var keyInfo = Console.ReadKey();
-            if (keyInfo.Key == ConsoleKey.Escape || keyInfo.Key == ConsoleKey.Q)
-                break;
-            AnsiConsole.Clear();
+            if (selectedNode == null)
+            {
+                AnsiConsole.MarkupLine("[bold red]Nothing selected[/]");
+                continue;
+            }
+
+            await SelectAndDownloadNodesBySeries(apiRequester, selectedNode, preferredDownloadDir);
         }
     }
 
-    private static async Task<bool> SelectAndDownloadNodesBySeries(ApiRequester apiRequester, Node selectedNode)
+    private static async Task<bool> SelectAndDownloadNodesBySeries(ApiRequester apiRequester, Node selectedNode,
+        string preferredDownloadDir)
     {
         DownloadSelection downloadSelection = DownloadSelection.Cancel;
         var items = await apiRequester.GetFilesByNodeId(selectedNode.nodeId);
         var children = FilterDownloadableNodes(items);
         if (!children.Any())
         {
-            AnsiConsole.Write("No downloads available");
+            AnsiConsole.Write("Keine Folgen zum Download gefunden.");
             Console.ReadKey();
         }
         else
@@ -50,7 +55,7 @@ public static class Program
             AnsiConsole.Write(CreateTreeFromNodes(selectedNode, children));
             var prompt = new SelectionPrompt<DownloadSelection>()
                 .Title("Download Auswahl:")
-                .AddChoices(new[] { DownloadSelection.All, DownloadSelection.Single, DownloadSelection.Cancel });
+                .AddChoices(DownloadSelection.All, DownloadSelection.Single, DownloadSelection.Cancel);
             prompt.Converter = selection =>
             {
                 return selection switch
@@ -72,7 +77,7 @@ public static class Program
 
         if (downloadSelection == DownloadSelection.All)
         {
-            await DownloadAllFilesFromNodes(apiRequester, children, selectedNode.title);
+            await DownloadAllFilesFromNodes(apiRequester, children, selectedNode.title, preferredDownloadDir);
         }
         else if (downloadSelection == DownloadSelection.Single)
         {
@@ -82,7 +87,8 @@ public static class Program
                 .AddChoices(children);
             selectionPrompt.Converter = selection => selection.title;
             var selectedChild = AnsiConsole.Prompt(selectionPrompt);
-            await DownloadAllFilesFromNodes(apiRequester, new List<Node> { selectedChild }, selectedNode.title);
+            await DownloadAllFilesFromNodes(apiRequester, new List<Node> { selectedChild }, selectedNode.title,
+                preferredDownloadDir);
         }
 
         return true;
@@ -209,10 +215,10 @@ public static class Program
     }
 
     public static async Task DownloadAllFilesFromNodes(ApiRequester apiRequester, IEnumerable<Node> nodes,
-        string parentTitle)
+        string parentTitle, string outputRootDir)
     {
-        string outputRootDir = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
-        string outputDir = Path.Combine(outputRootDir, MakeValidFileName(parentTitle));
+        string outputDir = Path.GetFullPath(Path.Combine(Environment.ExpandEnvironmentVariables(outputRootDir),
+            MakeValidFileName(parentTitle)));
         Console.WriteLine($"Download {parentTitle} nach {outputDir}");
         await AnsiConsole.Status().StartAsync("Downloading...", async ctx =>
         {
