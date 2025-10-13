@@ -1,4 +1,5 @@
 ﻿using audiothek_client;
+using audiothekar_cli.Models;
 using Spectre.Console;
 
 namespace audiothekar_cli;
@@ -16,43 +17,157 @@ public static class Program
             x.editorialCategory ??= new EditorialCategory() { id = "", title = "Andere" };
             return x;
         }).GroupBy(x => x.editorialCategory!.title).ToList();
-        bool downloadSelected = false;
         Node? selectedNode = null;
-        List<Node> children = new List<Node>();
-        while (!downloadSelected)
+        while (true)
         {
-            string selectedCategory = SelectCategory(categories);
+            var selectedCategory = SelectModeAndCategory(categories.Select(x => x.Key));
 
-            selectedNode = SelectSeries(categories.Single(x => x.Key == selectedCategory));
-
-            var items = await apiRequester.GetFilesByNodeId(selectedNode.nodeId);
-            children = FilterDownloadableNodes(items);
-            if (!children.Any())
-            {
-                AnsiConsole.Write("No downloads available");
-                Console.ReadKey();
-            }
+            if (selectedCategory.Value == Mode.Search)
+                selectedNode = await LiveSearchAsync(nodesOfAllCategories);
             else
-            {
-                AnsiConsole.Write(CreateTreeFromNodes(selectedNode, children));
-                downloadSelected = AnsiConsole.Confirm("Download starten?");
-            }
-
-            if (!downloadSelected)
-                AnsiConsole.Clear();
+                selectedNode = SelectSeries(categories.Single(x => x.Key == selectedCategory.DisplayName));
+            
+            await SelectAndDownloadNodesBySeries(apiRequester, selectedNode);
+            var keyInfo = Console.ReadKey();
+            if (keyInfo.Key == ConsoleKey.Escape || keyInfo.Key == ConsoleKey.Q)
+                break;
+            AnsiConsole.Clear();
         }
-
-        await DownloadAllFilesFromNodes(apiRequester, children, selectedNode!.title);
     }
 
-    private static string SelectCategory(IEnumerable<IGrouping<string, Node>> categories)
+    private static async Task<bool> SelectAndDownloadNodesBySeries(ApiRequester apiRequester, Node selectedNode)
     {
-        string selectedCategory = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Rubrik:")
+        DownloadSelection downloadSelection = DownloadSelection.Cancel;
+        var items = await apiRequester.GetFilesByNodeId(selectedNode.nodeId);
+        var children = FilterDownloadableNodes(items);
+        if (!children.Any())
+        {
+            AnsiConsole.Write("No downloads available");
+            Console.ReadKey();
+        }
+        else
+        {
+            AnsiConsole.Write(CreateTreeFromNodes(selectedNode, children));
+            var prompt = new SelectionPrompt<DownloadSelection>()
+                .Title("Download Auswahl:")
+                .AddChoices(new[] { DownloadSelection.All, DownloadSelection.Single, DownloadSelection.Cancel });
+            prompt.Converter = selection =>
+            {
+                return selection switch
+                {
+                    DownloadSelection.All => $"Alle {children.Count} Folgen herunterladen",
+                    DownloadSelection.Single => "Einzelne Folge herunterladen",
+                    DownloadSelection.Cancel => "Abbrechen",
+                    _ => throw new ArgumentOutOfRangeException(nameof(selection), selection, null)
+                };
+            };
+            downloadSelection = AnsiConsole.Prompt(prompt);
+        }
+
+        if (downloadSelection == DownloadSelection.Cancel)
+        {
+            AnsiConsole.Clear();
+            return false;
+        }
+
+        if (downloadSelection == DownloadSelection.All)
+        {
+            await DownloadAllFilesFromNodes(apiRequester, children, selectedNode.title);
+        }
+        else if (downloadSelection == DownloadSelection.Single)
+        {
+            var selectionPrompt = new SelectionPrompt<Node>()
+                .Title("Folge:")
                 .PageSize(15)
-                .AddChoices(categories.Select(x => x.Key).Order()));
+                .AddChoices(children);
+            selectionPrompt.Converter = selection => selection.title;
+            var selectedChild = AnsiConsole.Prompt(selectionPrompt);
+            await DownloadAllFilesFromNodes(apiRequester, new List<Node> { selectedChild }, selectedNode.title);
+        }
+
+        return true;
+    }
+
+    private static ValueRepresentation<Mode> SelectModeAndCategory(IEnumerable<string> categories)
+    {
+        var prompt = new SelectionPrompt<ValueRepresentation<Mode>>()
+            .Title("Rubrik:")
+            .PageSize(15);
+        prompt.Converter = x => x.DisplayName;
+        prompt.AddChoiceGroup(new ValueRepresentation<Mode>("Suchen", Mode.Search),
+            new ValueRepresentation<Mode>("Suchen", Mode.Search));
+        prompt.AddChoiceGroup(new ValueRepresentation<Mode>("Kategorien durchstöbern", Mode.Browse),
+            categories.Select(x => new ValueRepresentation<Mode>(x, Mode.Browse)).Order().ToList());
+        var selectedCategory = AnsiConsole.Prompt(prompt);
         return selectedCategory;
+    }
+
+    public static async Task<Node?> LiveSearchAsync(IEnumerable<Node> nodes)
+    {
+        var allNodes = nodes.ToList();
+        string searchTerm = "";
+        Node? selected = null;
+        int selectedIndex = 0;
+
+        await AnsiConsole.Live(new Table().AddColumn("Titel").AddColumn("Dauer"))
+            .StartAsync(async ctx =>
+            {
+                while (selected == null)
+                {
+                    var filtered = allNodes
+                        .Where(x => x.title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    // Auswahl-Index anpassen, falls nötig
+                    if (selectedIndex >= filtered.Count)
+                        selectedIndex = Math.Max(0, filtered.Count - 1);
+
+                    var table = new Table().AddColumn("Titel").AddColumn("Dauer");
+                    for (int i = 0; i < filtered.Count; i++)
+                    {
+                        var node = filtered[i];
+                        if (i == selectedIndex)
+                            table.AddRow($"[bold yellow]{node.title}[/]",
+                                $"[bold yellow]{TimeSpan.FromSeconds(node.duration)}[/]");
+                        else
+                            table.AddRow(node.title, TimeSpan.FromSeconds(node.duration).ToString());
+                    }
+
+                    ctx.UpdateTarget(table);
+
+                    AnsiConsole.MarkupLine($"[grey]Suchbegriff: {searchTerm}[/]");
+                    var key = Console.ReadKey(intercept: true);
+
+                    if (key.Key == ConsoleKey.Backspace && searchTerm.Length > 0)
+                    {
+                        searchTerm = searchTerm[..^1];
+                        selectedIndex = 0;
+                    }
+                    else if (key.Key == ConsoleKey.Enter && filtered.Any())
+                    {
+                        selected = filtered[selectedIndex];
+                    }
+                    else if (key.Key == ConsoleKey.UpArrow && selectedIndex > 0)
+                    {
+                        selectedIndex--;
+                    }
+
+                    else if (key.Key == ConsoleKey.DownArrow && selectedIndex < filtered.Count - 1)
+                    {
+                        selectedIndex++;
+                    }
+                    else if (!char.IsControl(key.KeyChar))
+                    {
+                        searchTerm += key.KeyChar;
+                        selectedIndex = 0;
+                    }
+
+                    ctx.Refresh();
+                    await Task.Delay(50);
+                }
+            });
+
+        return selected;
     }
 
     private static Node SelectSeries(IEnumerable<Node> nodes)
