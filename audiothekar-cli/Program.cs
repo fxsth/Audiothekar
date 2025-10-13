@@ -90,7 +90,7 @@ public static class Program
                 return selection switch
                 {
                     DownloadSelection.All => $"Alle {children.Count} Folgen herunterladen",
-                    DownloadSelection.Single => "Einzelne Folge herunterladen",
+                    DownloadSelection.Single => "Einzelne Folgen herunterladen",
                     DownloadSelection.Cancel => "Abbrechen",
                     _ => throw new ArgumentOutOfRangeException(nameof(selection), selection, null)
                 };
@@ -110,13 +110,13 @@ public static class Program
         }
         else if (downloadSelection == DownloadSelection.Single)
         {
-            var selectionPrompt = new SelectionPrompt<Node>()
+            var selectionPrompt = new MultiSelectionPrompt<Node>()
                 .Title("Folge:")
                 .PageSize(15)
                 .AddChoices(children);
             selectionPrompt.Converter = selection => selection.title;
-            var selectedChild = AnsiConsole.Prompt(selectionPrompt);
-            await DownloadAllFilesFromNodes(apiRequester, new List<Node> { selectedChild }, selectedNode.title,
+            var selectedChilds = AnsiConsole.Prompt(selectionPrompt);
+            await DownloadAllFilesFromNodes(apiRequester, selectedChilds, selectedNode.title,
                 preferredDownloadDir);
         }
 
