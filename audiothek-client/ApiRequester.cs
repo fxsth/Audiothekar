@@ -1,23 +1,26 @@
-﻿using audiothek_client.Serialize;
+﻿using audiothek_client.Models;
+using audiothek_client.Serialize;
 using GraphQL;
 using GraphQL.Client.Http;
 using GraphQL.Client.Serializer.SystemTextJson;
 
 namespace audiothek_client
 {
-
     public class ApiRequester
     {
         private const string ApiUrl = "https://api.ardaudiothek.de/graphql";
-        
+
         private static readonly GraphQLHttpClientOptions GraphQlClientOptions = new GraphQLHttpClientOptions
         {
             EndPoint = new Uri(ApiUrl)
         };
-        
+
         private static readonly SystemTextJsonSerializer Serializer = new SystemTextJsonSerializer()
         {
-            Options = { TypeInfoResolver = SourceGenerationContext.Default }
+            Options =
+            {
+                TypeInfoResolver = SourceGenerationContext.Default, PropertyNameCaseInsensitive = true
+            }
         };
 
         readonly GraphQLHttpClient _graphQlClient = new GraphQLHttpClient(GraphQlClientOptions, Serializer);
@@ -39,10 +42,47 @@ namespace audiothek_client
             };
         }
 
+        private GraphQLRequest SearchQuery(string searchTerm, int offset = 0, int limit = 5)
+        {
+            return new GraphQLRequest
+            {
+                Query =
+                    $"query SearchQuery($type:SearchType = All){{search(query:\"{searchTerm}\",offset:{offset},limit:{limit},type:$type){{items{{totalCount nodes{{id coreId title path publishDate duration itemType audios{{url downloadUrl allowDownload}}programSet{{id nodeId coreId numberOfElements editorialCategory {{\n  title\n}} title publicationService{{id coreId title path organizationName}}}}}}}}}}}}"
+            };
+        }
+
         public async Task<IEnumerable<Node>> GetAllProgramSets()
         {
             var graphQlResponse = await _graphQlClient.SendQueryAsync<Data>(_allProgramSetsRequest);
             return graphQlResponse.Data.programSets.nodes.Where(x => x.numberOfElements != null);
+        }
+
+        public async Task<IEnumerable<Node>> Search(string searchTerm, int offset = 0, int limit = 5, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var graphQlResponse =
+                await _graphQlClient.SendQueryAsync<DataSearch>(SearchQuery(searchTerm, offset, limit), cancellationToken);
+            return graphQlResponse.Data.search.items.nodes.Select(x => new Node()
+            {
+                title = x.title,
+                audios = x.audios.ToList(),
+                assetId = x.id,
+                publishDate = DateTimeOffset.Parse(x.publishDate),
+                duration = x.duration,
+                itemType = x.itemType,
+                programSet = new Node()
+                {
+                    nodeId = x.programSet?.nodeId,
+                    title = x.programSet?.title,
+                    numberOfElements = x.programSet?.numberOfElements,
+                    editorialCategory = x.programSet?.editorialCategory != null
+                        ? new EditorialCategory()
+                        {
+                            id = x.programSet.editorialCategory.id,
+                            title = x.programSet.editorialCategory.title
+                        }
+                        : null
+                }
+            });
         }
 
         public async Task<IEnumerable<Node>> GetFilesByNodeId(string nodeId)
@@ -80,7 +120,7 @@ namespace audiothek_client
         private async Task Download(string downloadUrl, string filePath)
         {
             string? dirPath = Path.GetDirectoryName(filePath);
-            if(dirPath == null)
+            if (dirPath == null)
                 throw new ArgumentException("Could not determine directory name from file path.", nameof(filePath));
             Directory.CreateDirectory(dirPath);
             var uri = new Uri(downloadUrl);

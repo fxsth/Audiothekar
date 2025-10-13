@@ -1,4 +1,5 @@
 ﻿using audiothek_client;
+using audiothek_client.Models;
 using audiothekar_cli.Models;
 using Spectre.Console;
 
@@ -26,13 +27,41 @@ public static class Program
             var selectedCategory = SelectModeAndCategory(categories.Select(x => x.Key));
 
             if (selectedCategory.Value == Mode.Search)
-                selectedNode = await LiveSearchAsync(nodesOfAllCategories);
+            {
+                selectedNode = await LiveSearchAsync(apiRequester, nodesOfAllCategories);
+            }
             else
                 selectedNode = SelectSeries(categories.Single(x => x.Key == selectedCategory.DisplayName));
+
             if (selectedNode == null)
             {
                 AnsiConsole.MarkupLine("[bold red]Nothing selected[/]");
                 continue;
+            }
+
+            if (selectedNode.itemType == "EPISODE" && selectedNode.programSet != null)
+            {
+                var prompt = new SelectionPrompt<string>()
+                    .Title("Episode oder Programmreihe laden?")
+                    .AddChoices("Episode", "Programmreihe", "Abbrechen");
+                var choice = AnsiConsole.Prompt(prompt);
+                if (choice == "Abbrechen")
+                {
+                    AnsiConsole.Clear();
+                    continue;
+                }
+
+                if (choice == "Episode")
+                {
+                    await DownloadAllFilesFromNodes(apiRequester, new List<Node> { selectedNode }, selectedNode.title,
+                        preferredDownloadDir);
+                    AnsiConsole.Clear();
+                    continue;
+                }
+                else
+                {
+                    selectedNode = selectedNode.programSet;
+                }
             }
 
             await SelectAndDownloadNodesBySeries(apiRequester, selectedNode, preferredDownloadDir);
@@ -108,7 +137,7 @@ public static class Program
         return selectedCategory;
     }
 
-    public static async Task<Node?> LiveSearchAsync(IEnumerable<Node> nodes)
+    public static async Task<Node?> LiveSearchAsync(ApiRequester apiRequester, IEnumerable<Node> nodes)
     {
         var allNodes = nodes.ToList();
         string searchTerm = "";
@@ -118,11 +147,22 @@ public static class Program
         await AnsiConsole.Live(new Table().AddColumn("Titel").AddColumn("Anzahl Folgen"))
             .StartAsync(async ctx =>
             {
+                CancellationTokenSource cts = new CancellationTokenSource();
+                var filtered = new List<Node>();
                 while (selected == null)
                 {
-                    var filtered = allNodes
-                        .Where(x => x.title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
+                    await cts.CancelAsync();
+                    cts = new CancellationTokenSource();
+                    try
+                    {
+                        filtered = string.IsNullOrEmpty(searchTerm)
+                            ? new List<Node>()
+                            : (await apiRequester.Search(searchTerm, 0, 5, cts.Token)).ToList();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
 
                     // Auswahl-Index anpassen, falls nötig
                     if (selectedIndex >= filtered.Count)
@@ -193,11 +233,6 @@ public static class Program
             .GroupBy(x => x.assetId)
             .Select(y => y.OrderByDescending(a => a.publishDate).First())
             .OrderBy(x => x.episodeNumber).ToList();
-    }
-    
-    private static bool HasDownloadableNodes(IEnumerable<Node> nodes)
-    {
-        return nodes.Any(x => x.audios.Any(audio => audio.downloadUrl != null));
     }
 
     private static Tree CreateTreeFromNodes(Node root, IReadOnlyCollection<Node> children)
